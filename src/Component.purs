@@ -116,7 +116,7 @@ ui =
         method = Left POST,
         responseFormat = AXRF.json,
         content = Just (AXRB.string (JSON.writeJSON { username: username, email: email, password: password })),
-        withCredentials = false
+        withCredentials = true
       })
       H.modify_ (_ { loading = false, result = hush $ J.stringify <$> response.body })
       pure next
