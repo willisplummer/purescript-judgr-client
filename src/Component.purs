@@ -53,7 +53,7 @@ ui =
   render :: State -> H.ComponentHTML Query
   render st =
     HH.form_ $
-      [ HH.h1_ [ HH.text "Lookup GitHub user" ]
+      [ HH.h1_ [ HH.text "Sign Up For Judgr" ]
       , HH.label_
           [ HH.div_ [ HH.text "Enter username:" ]
           , HH.input
