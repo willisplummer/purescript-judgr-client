@@ -132,7 +132,7 @@ ui =
         headers = [AXRH.RequestHeader "Accept" "application/json",
         AXRH.RequestHeader "Content-Type" "application/json"
         ],
-        url = "http://localhost:8080/judgeables",
+        url = "http://localhost:8080/users",
         method = Left GET,
         responseFormat = AXRF.json,
         withCredentials = true
