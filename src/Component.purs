@@ -36,6 +36,7 @@ data Query a
   | SetPassword String a
   | SetEmail String a
   | MakeRequest a
+  | MakeAuthdRequest a
 
 ui :: H.Component HH.HTML Query Unit Void Aff
 ui =
@@ -80,6 +81,11 @@ ui =
           , HE.onClick (HE.input_ MakeRequest)
           ]
           [ HH.text "Register" ]
+      , HH.button
+          [ HP.disabled st.loading
+          , HE.onClick (HE.input_ MakeAuthdRequest)
+          ]
+          [ HH.text "authd request" ]
       , HH.p_
           [ HH.text (if st.loading then "Working..." else "") ]
       , HH.div_
@@ -112,10 +118,23 @@ ui =
       response <- H.liftAff $ AX.request (AX.defaultRequest {
         headers = [AXRH.RequestHeader "Accept" "application/json",
         AXRH.RequestHeader "Content-Type" "application/json"],
-        url = "http://localhost:3001/signup",
+        url = "http://localhost:8080/signup",
         method = Left POST,
         responseFormat = AXRF.json,
         content = Just (AXRB.string (JSON.writeJSON { username: username, email: email, password: password })),
+        withCredentials = true
+      })
+      H.modify_ (_ { loading = false, result = hush $ J.stringify <$> response.body })
+      pure next
+    MakeAuthdRequest next -> do
+      H.modify_ (_ { loading = true })
+      response <- H.liftAff $ AX.request (AX.defaultRequest {
+        headers = [AXRH.RequestHeader "Accept" "application/json",
+        AXRH.RequestHeader "Content-Type" "application/json"
+        ],
+        url = "http://localhost:8080/judgeables",
+        method = Left GET,
+        responseFormat = AXRF.json,
         withCredentials = true
       })
       H.modify_ (_ { loading = false, result = hush $ J.stringify <$> response.body })
