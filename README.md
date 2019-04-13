@@ -2,6 +2,12 @@
 yarn start
 ```
 
+in another terminal
+
+```
+yarn start:proxy
+```
+
 ```
 pscid
 ```
