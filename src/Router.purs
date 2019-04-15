@@ -3,17 +3,18 @@ module Router where
 import Prelude
 import Data.Array as A
 import Data.Maybe (Maybe(..))
+import Data.Route (Route(..))
 import Halogen as H
 import Halogen.HTML as HH
 import Effect.Aff.Class (class MonadAff)
 
 import Component.LogIn as LogIn
 
-type Input = String
+type Input = Maybe Route
 
-type State = { history :: Array String, route :: String }
+type State = { route :: Maybe Route }
 
-data Query a = ChangeRoute String a
+data Query a = Navigate (Maybe Route) a
 
 data Slot = LogInSlot
 derive instance eqLogInSlot :: Eq Slot
@@ -29,18 +30,20 @@ component =
     }
   where
 
-  initialState :: String -> State
-  initialState = \initialRoute -> { history: [], route: initialRoute }
+  initialState :: Maybe Route -> State
+  initialState = \initialRoute -> { route: initialRoute }
 
   render :: State -> H.ParentHTML Query LogIn.Query Slot m
-  render state =
-    HH.div_
-      [ HH.slot LogInSlot LogIn.ui unit (const Nothing)
-      , HH.text state.route
-      ]
+  render { route } = case route of
+    Nothing -> HH.div_ [ HH.text "NOT FOUND" ]
+    Just justRoute -> case justRoute of
+      Login -> 
+        HH.slot LogInSlot LogIn.ui unit (const Nothing)
+
 
   eval :: Query ~> H.ParentDSL State Query LogIn.Query Slot Void m
-  eval = case _ of
-    ChangeRoute msg next -> do
-      H.modify_ \st -> { history: st.history `A.snoc` msg, route: st.route }
-      pure next
+  eval (Navigate dest a) = do
+    { route } <- H.get 
+    when (route /= dest) do
+      H.modify_ _ { route = dest }
+    pure a

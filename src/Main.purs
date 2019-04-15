@@ -5,11 +5,13 @@ import Prelude
 import Control.Coroutine as CR
 import Control.Coroutine.Aff (emit)
 import Control.Coroutine.Aff as CRA
+import Data.Either (hush)
 import Data.Foldable (traverse_)
 import Data.Maybe (Maybe(..))
 import Data.String.CodeUnits as Str
+import Data.Route (Route(..), maybeMyRoute)
 import Effect (Effect)
-import Effect.Aff (Aff)
+import Effect.Aff (Aff, launchAff_)
 import Effect.Class (liftEffect)
 import Halogen as H
 import Halogen.Aff as HA
@@ -20,36 +22,17 @@ import Web.HTML (window) as DOM
 import Web.HTML.Event.HashChangeEvent as HCE
 import Web.HTML.Event.HashChangeEvent.EventTypes as HCET
 import Web.HTML.Window as Window
-import Routing.Hash (getHash)
-
--- A producer coroutine that emits messages whenever the window emits a
--- `hashchange` event.
-hashChangeProducer :: CR.Producer HCE.HashChangeEvent Aff Unit
-hashChangeProducer = CRA.produce \emitter -> do
-  listener <- DOM.eventListener (traverse_ (emit emitter) <<< HCE.fromEvent)
-  liftEffect $
-    DOM.window
-      >>= Window.toEventTarget
-      >>> DOM.addEventListener HCET.hashchange listener false
-
--- A consumer coroutine that takes the `query` function from our component IO
--- record and sends `ChangeRoute` queries in when it receives inputs from the
--- producer.
-hashChangeConsumer
-  :: (Router.Query ~> Aff)
-  -> CR.Consumer HCE.HashChangeEvent Aff Unit
-hashChangeConsumer query = CR.consumer \event -> do
-  let hash = Str.drop 1 $ Str.dropWhile (_ /= '#') $ HCE.newURL event
-  query $ H.action $ Router.ChangeRoute hash
-  pure Nothing
+import Routing.Hash (getHash, matches)
 
 main :: Effect Unit
 main = HA.runHalogenAff do
   body <- HA.awaitBody
-  initialHash <- liftEffect $ getHash
-  io <- runUI Router.component initialHash body
-
+  initialHash <- liftEffect $ getHash 
+  io <- runUI Router.component Nothing body
   -- Connecting the consumer to the producer initializes both, adding the event
   -- listener to the window and feeding queries back to our component as events
   -- are received.
-  CR.runProcess (hashChangeProducer CR.$$ hashChangeConsumer io.query)
+  void $ liftEffect $ matches maybeMyRoute \old new ->
+  when (old /= Just new) do
+    launchAff_ $ io.query $ H.action $ Router.Navigate new
+  pure unit
