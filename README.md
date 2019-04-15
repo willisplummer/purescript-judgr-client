@@ -12,3 +12,12 @@ yarn start:proxy
 pscid
 ```
 to watch for changes
+
+## To Add A Dependency
+
+```
+psc-package install <package>
+psc-package build
+```
+
+if it's prefixed with purescript, you leave that bit off so to install `purescript-routing` it's `psc-package install routing`

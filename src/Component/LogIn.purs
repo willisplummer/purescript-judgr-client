@@ -1,4 +1,4 @@
-module Component (State, Query(..), ui) where
+module Component.LogIn where
 
 import Prelude
 
@@ -8,6 +8,7 @@ import Data.Either (Either(..), hush)
 import Data.HTTP.Method (Method(..))
 import Data.Maybe (Maybe(..))
 import Effect.Aff (Aff)
+import Effect.Aff.Class (class MonadAff)
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
@@ -38,7 +39,12 @@ data Query a
   | MakeRequest a
   | MakeAuthdRequest a
 
-ui :: H.Component HH.HTML Query Unit Void Aff
+data Slot = Slot
+
+derive instance eqSlot :: Eq Slot
+derive instance ordSlot :: Ord Slot
+
+ui :: forall m. MonadAff m => H.Component HH.HTML Query Unit Void m
 ui =
   H.component
     { initialState: const initialState
@@ -53,7 +59,7 @@ ui =
 
   render :: State -> H.ComponentHTML Query
   render st =
-    HH.form_ $
+    HH.form_
       [ HH.h1_ [ HH.text "Sign Up For Judgr" ]
       , HH.label_
           [ HH.div_ [ HH.text "Enter username:" ]
@@ -99,7 +105,7 @@ ui =
               ]
       ]
 
-  eval :: Query ~> H.ComponentDSL State Query Void Aff
+  eval :: Query ~> H.ComponentDSL State Query Void m
   eval = case _ of
     SetUsername username next -> do
       H.modify_ (_ { username = username, result = Nothing })
