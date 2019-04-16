@@ -1,7 +1,6 @@
 module Router where
 
 import Prelude
-import Data.Array as A
 import Data.Maybe (Maybe(..))
 import Data.Route (Route(..))
 import Halogen as H

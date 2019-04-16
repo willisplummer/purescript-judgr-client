@@ -7,7 +7,8 @@ import Simple.JSON as JSON
 import Data.Either (Either(..), hush)
 import Data.HTTP.Method (Method(..))
 import Data.Maybe (Maybe(..))
-import Effect.Aff (Aff)
+import Effect (Effect)
+import Effect.Class (liftEffect)
 import Effect.Aff.Class (class MonadAff)
 import Halogen as H
 import Halogen.HTML as HH
@@ -17,6 +18,9 @@ import Affjax as AX
 import Affjax.ResponseFormat as AXRF
 import Affjax.RequestBody as AXRB
 import Affjax.RequestHeader as AXRH
+import Web.HTML (window)
+import Web.HTML.Window (location)
+import Web.HTML.Location (setHref)
 
 type SignupPostBody = {
   username :: String,
@@ -103,6 +107,7 @@ ui =
               , HH.pre_
                   [ HH.code_ [ HH.text res ] ]
               ]
+      , HH.a [ HP.href "#link-a" ] [ HH.text "Link A" ] 
       ]
 
   eval :: Query ~> H.ComponentDSL State Query Void m
@@ -130,6 +135,7 @@ ui =
         content = Just (AXRB.string (JSON.writeJSON { username: username, email: email, password: password })),
         withCredentials = true
       })
+      liftEffect $ setHref' "/loggedin"
       H.modify_ (_ { loading = false, result = hush $ J.stringify <$> response.body })
       pure next
     MakeAuthdRequest next -> do
@@ -145,3 +151,8 @@ ui =
       })
       H.modify_ (_ { loading = false, result = hush $ J.stringify <$> response.body })
       pure next
+    where
+      setHref' :: String -> Effect Unit
+      setHref' href = do
+        loc <- location =<< window
+        setHref href loc

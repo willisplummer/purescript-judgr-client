@@ -2,7 +2,7 @@ module Data.Route where
 
 import Prelude
 import Control.Alternative ((<|>))
-import Routing.Match (Match, lit, int, str, end)
+import Routing.Match (Match, lit, int, str, end, root)
 import Data.Foldable (oneOf)
 import Data.Maybe (Maybe(..))
 
@@ -10,7 +10,7 @@ data Route =
   Login
 
 myRoute :: Match Route
-myRoute = oneOf
+myRoute = root *> oneOf
   [ Login <$ lit "login"
   ]
 
