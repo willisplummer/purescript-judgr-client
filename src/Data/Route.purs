@@ -8,10 +8,12 @@ import Data.Maybe (Maybe(..))
 
 data Route =
   Login
+  | Judgeable
 
 myRoute :: Match Route
 myRoute = root *> oneOf
   [ Login <$ lit "login"
+    , Judgeable <$ end
   ]
 
 maybeMyRoute :: Match (Maybe Route)
