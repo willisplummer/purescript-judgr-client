@@ -8,12 +8,16 @@ import Data.Maybe (Maybe(..))
 
 data Route =
   Login
+  | SignUp
   | Judgeable
+  | Users
 
 myRoute :: Match Route
 myRoute = root *> oneOf
   [ Login <$ lit "login"
-    , Judgeable <$ end
+  , SignUp <$ lit "signup"
+  , Judgeable <$ end
+  , Users <$ lit "users"
   ]
 
 maybeMyRoute :: Match (Maybe Route)
