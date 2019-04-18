@@ -7,14 +7,16 @@
     "test": "test"
   },
   "scripts": {
-    "start": "psc-package build && parcel index.html",
+    "start:client": "psc-package build && parcel index.html",
     "start:proxy": "node server.js",
+    "start": "concurrently --kill-others \"yarn run start:client\" \"yarn run start:proxy\"",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",
   "license": "MIT",
   "dependencies": {
     "body-parser": "^1.18.3",
+    "concurrently": "^4.1.0",
     "cookie-parser": "^1.4.4",
     "cors": "^2.8.5",
     "express": "^4.16.4",

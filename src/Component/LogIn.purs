@@ -28,18 +28,15 @@ type SignupPostBody = {
 
 type State =
   { loading :: Boolean
-  , username :: String
   , email :: String
   , password :: String
   , result :: Maybe String
   }
 
 data Query a
-  = SetUsername String a
-  | SetPassword String a
+  = SetPassword String a
   | SetEmail String a
   | MakeRequest a
-  | MakeAuthdRequest a
 
 data Slot = Slot
 
@@ -57,62 +54,38 @@ ui =
   where
 
   initialState :: State
-  initialState = { loading: false, username: "", email: "", password: "", result: Nothing }
+  initialState = { loading: false, email: "", password: "", result: Nothing }
 
   render :: State -> H.ComponentHTML Query
   render st =
-    HH.form_
-      [ HH.h1_ [ HH.text "Sign Up For Judgr" ]
-      , HH.label_
-          [ HH.div_ [ HH.text "Enter username:" ]
-          , HH.input
-              [ HP.value st.username
-              , HE.onValueInput (HE.input SetUsername)
-              ]
-          ]
-      , HH.label_
-          [ HH.div_ [ HH.text "Enter email:" ]
-          , HH.input
-              [ HP.value st.email
-              , HE.onValueInput (HE.input SetEmail)
-              ]
-          ]
-      , HH.label_
-          [ HH.div_ [ HH.text "Enter password:" ]
-          , HH.input
-              [ HP.value st.password
-              , HE.onValueInput (HE.input SetPassword)
-              ]
-          ]
-      , HH.button
-          [ HP.disabled st.loading
-          , HE.onClick (HE.input_ MakeRequest)
-          ]
-          [ HH.text "Register" ]
-      , HH.button
-          [ HP.disabled st.loading
-          , HE.onClick (HE.input_ MakeAuthdRequest)
-          ]
-          [ HH.text "authd request" ]
-      , HH.p_
-          [ HH.text (if st.loading then "Working..." else "") ]
-      , HH.div_
-          case st.result of
-            Nothing -> []
-            Just res ->
-              [ HH.h2_
-                  [ HH.text "Response:" ]
-              , HH.pre_
-                  [ HH.code_ [ HH.text res ] ]
-              ]
-      , HH.a [ HP.href "#link-a" ] [ HH.text "Link A" ] 
-      ]
+    HH.div_ [
+      HH.form_
+        [ HH.h1_ [ HH.text "Log In To Judgr" ]
+        , HH.label_
+            [ HH.div_ [ HH.text "Enter email:" ]
+            , HH.input
+                [ HP.value st.email
+                , HE.onValueInput (HE.input SetEmail)
+                ]
+            ]
+        , HH.label_
+            [ HH.div_ [ HH.text "Enter password:" ]
+            , HH.input
+                [ HP.value st.password
+                , HE.onValueInput (HE.input SetPassword)
+                ]
+            ]
+        , HH.button
+            [ HP.disabled st.loading
+            , HE.onClick (HE.input_ MakeRequest)
+            ]
+            [ HH.text (if st.loading then "Working..." else "Log In") ]
+        ]
+    , HH.a [ HP.href "/signup" ] [ HH.text "Sign Up" ]
+    ]
 
   eval :: Query ~> H.ComponentDSL State Query Void m
   eval = case _ of
-    SetUsername username next -> do
-      H.modify_ (_ { username = username, result = Nothing })
-      pure next
     SetEmail email next -> do
       H.modify_ (_ { email = email, result = Nothing })
       pure next
@@ -120,32 +93,18 @@ ui =
       H.modify_ (_ { password = password, result = Nothing })
       pure next
     MakeRequest next -> do
-      username <- H.gets _.username
-      password <- H.gets _.password
       email <- H.gets _.email
+      password <- H.gets _.password
       H.modify_ (_ { loading = true })
       response <- H.liftAff $ AX.request (AX.defaultRequest {
         headers = [AXRH.RequestHeader "Accept" "application/json",
         AXRH.RequestHeader "Content-Type" "application/json"],
-        url = "http://localhost:8080/signup",
+        url = "http://localhost:8080/login",
         method = Left POST,
         responseFormat = AXRF.json,
-        content = Just (AXRB.string (JSON.writeJSON { username: username, email: email, password: password })),
+        content = Just (AXRB.string (JSON.writeJSON { email: email, password: password })),
         withCredentials = true
       })
-      liftEffect $ setHref "/loggedin"
-      H.modify_ (_ { loading = false, result = hush $ J.stringify <$> response.body })
-      pure next
-    MakeAuthdRequest next -> do
-      H.modify_ (_ { loading = true })
-      response <- H.liftAff $ AX.request (AX.defaultRequest {
-        headers = [AXRH.RequestHeader "Accept" "application/json",
-        AXRH.RequestHeader "Content-Type" "application/json"
-        ],
-        url = "http://localhost:8080/users",
-        method = Left GET,
-        responseFormat = AXRF.json,
-        withCredentials = true
-      })
+      liftEffect $ setHref "/"
       H.modify_ (_ { loading = false, result = hush $ J.stringify <$> response.body })
       pure next

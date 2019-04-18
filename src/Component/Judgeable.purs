@@ -3,19 +3,14 @@ module Component.Judgeable (State, Query(..), ui) where
 import Prelude
 
 import Data.Argonaut.Core as J
-import Simple.JSON as JSON
 import Data.Either (Either(..), hush)
 import Data.HTTP.Method (Method(..))
 import Data.Maybe (Maybe(..))
-import Effect.Aff (Aff)
 import Effect.Aff.Class (class MonadAff)
 import Halogen as H
 import Halogen.HTML as HH
-import Halogen.HTML.Events as HE
-import Halogen.HTML.Properties as HP
 import Affjax as AX
 import Affjax.ResponseFormat as AXRF
-import Affjax.RequestBody as AXRB
 import Affjax.RequestHeader as AXRH
 
 data Input a
@@ -50,8 +45,19 @@ ui =
   initialState = { loading: true, result: Nothing }
 
   render :: State -> H.ComponentHTML Query
-  render st = HH.div_ [ HH.h1_ [ HH.text "JUDGE" ] ]
-
+  render st =
+    HH.div_ [
+      HH.h1_ [ HH.text "JUDGE" ],
+      HH.div_
+        case st.result of
+          Nothing -> []
+          Just res ->
+            [ HH.h2_
+                [ HH.text "Response:" ]
+            , HH.pre_
+                [ HH.code_ [ HH.text res ] ]
+            ]
+      ]
   eval :: Query ~> H.ComponentDSL State Query Void m
   eval = case _ of
     Initialize next -> do

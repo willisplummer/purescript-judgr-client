@@ -45,7 +45,19 @@ ui =
   initialState = { loading: false, result: Nothing }
 
   render :: State -> H.ComponentHTML Query
-  render st = HH.div_ [ HH.h1_ [ HH.text "USERS" ] ]
+  render st =
+    HH.div_ [
+      HH.h1_ [ HH.text "USERS" ],
+      HH.div_
+        case st.result of
+          Nothing -> []
+          Just res ->
+            [ HH.h2_
+                [ HH.text "Response:" ]
+            , HH.pre_
+                [ HH.code_ [ HH.text res ] ]
+            ]
+      ]
 
   eval :: Query ~> H.ComponentDSL State Query Void m
   eval = case _ of
