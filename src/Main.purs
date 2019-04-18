@@ -18,9 +18,7 @@ main = HA.runHalogenAff do
   body <- HA.awaitBody
   nav <- liftEffect $ makeInterface
   io <- runUI Router.component Nothing body
-  -- Connecting the consumer to the producer initializes both, adding the event
-  -- listener to the window and feeding queries back to our component as events
-  -- are received.
+
   void $ liftEffect $ nav # matches maybeMyRoute \old new ->
   when (old /= Just new) do
     launchAff_ $ io.query $ H.action $ Router.Navigate new

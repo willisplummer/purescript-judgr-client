@@ -27,7 +27,7 @@ type State =
   }
 
 data Query a
-  =  GetJudgeable a
+  =  Initialize a
 
 data Slot = Slot
 
@@ -36,21 +36,33 @@ derive instance ordSlot :: Ord Slot
 
 ui :: forall m. MonadAff m => H.Component HH.HTML Query Unit Void m
 ui =
-  H.component
+  H.lifecycleComponent
     { initialState: const initialState
     , render
     , eval
+    , initializer: Just (H.action Initialize)
+    , finalizer: Nothing
     , receiver: const Nothing
     }
   where
 
   initialState :: State
-  initialState = { loading: false, result: Nothing }
+  initialState = { loading: true, result: Nothing }
 
   render :: State -> H.ComponentHTML Query
   render st = HH.div_ [ HH.h1_ [ HH.text "JUDGE" ] ]
 
   eval :: Query ~> H.ComponentDSL State Query Void m
   eval = case _ of
-    GetJudgeable next -> do
+    Initialize next -> do
+      response <- H.liftAff $ AX.request (AX.defaultRequest {
+        headers = [AXRH.RequestHeader "Accept" "application/json",
+        AXRH.RequestHeader "Content-Type" "application/json"
+        ],
+        url = "http://localhost:8080/judgeables",
+        method = Left GET,
+        responseFormat = AXRF.json,
+        withCredentials = true
+      })
+      H.modify_ (_ { loading = false, result = hush $ J.stringify <$> response.body })
       pure next
