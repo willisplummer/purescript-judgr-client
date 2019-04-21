@@ -24,6 +24,9 @@ if it's prefixed with purescript, you leave that bit off so to install `purescri
 
 ## TODO
 
+### Authentication
+- Figure out why cookie isn't being preserved after refresh
+
 ### Users Screen
 - Parse JSON data on users screen
 - Render users as a list
