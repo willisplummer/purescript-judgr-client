@@ -12,6 +12,7 @@
     "prelude",
     "psci-support",
     "routing",
+    "routing-duplex",
     "simple-json"
   ]
 }

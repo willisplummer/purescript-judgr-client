@@ -7,6 +7,7 @@ import Simple.JSON as JSON
 import Data.Either (Either(..), hush)
 import Data.HTTP.Method (Method(..))
 import Data.Maybe (Maybe(..))
+import Data.Route (Route(..), stringifyRoute)
 import Effect.Class (liftEffect)
 import Effect.Aff.Class (class MonadAff)
 import Halogen as H
@@ -18,7 +19,7 @@ import Affjax.ResponseFormat as AXRF
 import Affjax.RequestBody as AXRB
 import Affjax.RequestHeader as AXRH
 
-import Utils.SetHref (setHref)
+import Utils.SetHref (setHref')
 
 type SignupPostBody = {
   username :: String,
@@ -81,7 +82,7 @@ ui =
             ]
             [ HH.text (if st.loading then "Working..." else "Log In") ]
         ]
-    , HH.a [ HP.href "/signup" ] [ HH.text "Sign Up" ]
+    , HH.a [ HP.href $ stringifyRoute SignUp ] [ HH.text "Sign Up" ]
     ]
 
   eval :: Query ~> H.ComponentDSL State Query Void m
@@ -105,6 +106,6 @@ ui =
         content = Just (AXRB.string (JSON.writeJSON { email: email, password: password })),
         withCredentials = true
       })
-      liftEffect $ setHref "/"
+      liftEffect $ setHref' Judgeable
       H.modify_ (_ { loading = false, result = hush $ J.stringify <$> response.body })
       pure next

@@ -1,29 +1,24 @@
 module Data.Route where
 
 import Prelude
-import Control.Alternative ((<|>))
-import Routing.Match (Match, lit, int, str, end, root)
-import Data.Foldable (oneOf)
-import Data.Maybe (Maybe(..))
+import Data.Generic.Rep (class Generic)
+import Routing.Duplex (RouteDuplex', path, root, print)
+import Routing.Duplex.Generic (noArgs, sum)
 
-data Route =
-  Login
-  | SignUp
-  | Judgeable
-  | Users
+data Route = Login | SignUp | Judgeable | Users
 
-myRoute :: Match Route
-myRoute = root *> oneOf
-  [ Login <$ lit "login"
-  , SignUp <$ lit "signup"
-  , Judgeable <$ end
-  , Users <$ lit "users"
-  ]
+derive instance genericRoute :: Generic Route _
 
-maybeMyRoute :: Match (Maybe Route)
-maybeMyRoute = oneOf
-  [ Just <$> myRoute
-  , pure Nothing
-  ]
+stringifyRoute :: Route -> String
+stringifyRoute = print route
+
+route :: RouteDuplex' Route
+route = root $ sum
+  { "Judgeable": noArgs
+  , "SignUp": path "signup" noArgs
+  , "Login": path "login" noArgs
+  , "Users": path "users" noArgs
+  }
+
 derive instance eqRoute :: Eq Route
 derive instance ordRoute :: Ord Route
