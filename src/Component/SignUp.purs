@@ -119,6 +119,6 @@ ui =
         content = Just (AXRB.string (JSON.writeJSON { username: username, email: email, password: password })),
         withCredentials = true
       })
-      liftEffect $ setHref' Judgeable
+      liftEffect $ setHref' Users
       H.modify_ (_ { loading = false, result = hush $ J.stringify <$> response.body })
       pure next
