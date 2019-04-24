@@ -1,10 +1,11 @@
-module Component.Users (State, Query(..), ui) where
+module Component.Users (State, Query(..), Response(..), User(..), ui) where
 
 import Prelude
 
-import Data.Argonaut.Core as J
-import Data.Either (Either(..), hush)
+import Data.Bifunctor (lmap)
+import Data.Either (Either(..))
 import Data.HTTP.Method (Method(..))
+import Data.List.NonEmpty (singleton)
 import Data.Maybe (Maybe(..))
 import Effect.Aff.Class (class MonadAff)
 import Halogen as H
@@ -12,13 +13,22 @@ import Halogen.HTML as HH
 import Affjax as AX
 import Affjax.ResponseFormat as AXRF
 import Affjax.RequestHeader as AXRH
+import Simple.JSON as JSON
 
 data Input a
   = Noop a
 
+type User =
+  { name :: String
+  , email :: String
+  , id :: Int
+  }
+
+type Response = Array User
+
 type State =
   { loading :: Boolean
-  , result :: Maybe String
+  , result :: Maybe Response
   }
 
 data Query a
@@ -49,15 +59,18 @@ ui =
     HH.div_ [
       HH.h1_ [ HH.text "USERS" ],
       HH.div_
-        case st.result of
-          Nothing -> []
-          Just res ->
             [ HH.h2_
                 [ HH.text "Response:" ]
             , HH.pre_
-                [ HH.code_ [ HH.text res ] ]
+                [ HH.code_ userComponents ]
             ]
       ]
+      where
+      userComponents :: Array (H.ComponentHTML Query)
+      userComponents =
+        case st.result of
+        Just r -> map (\u -> HH.div_ [ HH.text u.name ] ) r
+        Nothing -> []
 
   eval :: Query ~> H.ComponentDSL State Query Void m
   eval = case _ of
@@ -68,8 +81,22 @@ ui =
         ],
         url = "http://localhost:8080/users",
         method = Left GET,
-        responseFormat = AXRF.json,
+        responseFormat = AXRF.string,
         withCredentials = true
       })
-      H.modify_ (_ { loading = false, result = hush $ J.stringify <$> response.body })
+
+      case lmap transformError response.body >>= JSON.readJSON of
+        Right (r :: Response) -> do
+          H.modify_ (_ {
+            loading = false,
+            result = Just r
+          })
+        Left e -> do
+          H.modify_ (_ {
+            loading = false,
+            result = Nothing
+          })
+
       pure next
+
+transformError (AXRF.ResponseFormatError e _) = singleton e
