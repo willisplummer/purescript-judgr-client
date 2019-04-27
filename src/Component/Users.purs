@@ -1,15 +1,19 @@
-module Component.Users (State, Query(..), UserResponse(..), User(..), ui) where
+module Component.Users (State, Query(..), UserResponse(..), User(..), Follow(..), FollowResponse(..), ui) where
 
 import Prelude
 
+import Data.Array (find)
 import Data.Bifunctor (lmap)
 import Data.Either (Either(..), hush)
 import Data.HTTP.Method (Method(..))
+import Data.Int (toStringAs, decimal)
 import Data.List.NonEmpty (singleton)
-import Data.Maybe (Maybe(..), fromMaybe)
+import Data.Maybe (Maybe(..), fromMaybe, isJust)
 import Effect.Aff.Class (class MonadAff)
 import Halogen as H
 import Halogen.HTML as HH
+import Halogen.HTML.Events as HE
+import Halogen.HTML.Properties as HP
 import Affjax as AX
 import Affjax.ResponseFormat as AXRF
 import Affjax.RequestHeader as AXRH
@@ -17,6 +21,14 @@ import Simple.JSON as JSON
 
 data Input a
   = Noop a
+
+type Follow =
+  { id :: Int
+  , followerId :: Int
+  , followedId :: Int
+  }
+
+type FollowResponse = Array Follow
 
 type User =
   { name :: String
@@ -29,13 +41,17 @@ type UserResponse = Array User
 type State =
   { loading :: Boolean
   , users :: Maybe UserResponse
-  , follows :: Maybe String
+  , follows :: Maybe FollowResponse
   }
 
 data Query a
   =  Initialize a
+  |  Follow Int a
 
 data Slot = Slot
+
+checkFollows :: User -> FollowResponse -> Boolean
+checkFollows u fArr = isJust $ find (\f -> f.followedId == u.id) fArr
 
 derive instance eqSlot :: Eq Slot
 derive instance ordSlot :: Ord Slot
@@ -62,17 +78,26 @@ ui =
       HH.div_
             [ HH.h2_
                 [ HH.text "Response:" ]
-            , HH.pre_
-                [ HH.code_ userComponents ]
-            , HH.h2_
-                [ HH.text "Response:" ]
-            , HH.pre_
-                [ HH.code_ [ HH.text $ fromMaybe "" st.follows ] ]
+            , HH.div_ userComponents
             ]
       ]
       where
       userComponents :: Array (H.ComponentHTML Query)
-      userComponents = map (\u -> HH.div_ [ HH.text u.name ] ) (fromMaybe [] st.users)
+      userComponents = map (\u ->
+        HH.div_ 
+          [
+            HH.text u.name
+          , (
+            if (checkFollows u (fromMaybe [] st.follows))
+            then
+              HH.text "  FOLLOWING!"
+            else
+              HH.button
+              [ HP.disabled st.loading
+              , HE.onClick (HE.input_ (Follow u.id))
+              ]
+              [ HH.text (if st.loading then "Working..." else "Follow") ])
+          ]) (fromMaybe [] st.users)
 
   eval :: Query ~> H.ComponentDSL State Query Void m
   eval = case _ of
@@ -97,19 +122,27 @@ ui =
         withCredentials = true
       })
 
-      case lmap transformError userResponse.body >>= JSON.readJSON of
-        Right (r :: UserResponse) -> do
-          H.modify_ (_ {
-            loading = false,
-            users = Just r,
-            follows = hush $ followResponse.body
-          })
-        Left e -> do
-          H.modify_ (_ {
-            loading = false,
-            users = Nothing,
-            follows = hush $ followResponse.body
-          })
+      H.modify_ (_ {
+        loading = false,
+        users = hush $ JSON.readJSON =<< lmap transformError userResponse.body,
+        follows = hush $ JSON.readJSON =<< lmap transformError followResponse.body
+      })
+
+      pure next
+    Follow id next -> do
+      H.modify_ (_ { loading = true })
+
+      response <- H.liftAff $ AX.request (AX.defaultRequest {
+                headers = [AXRH.RequestHeader "Accept" "application/json",
+        AXRH.RequestHeader "Content-Type" "application/json"],
+        url = "http://localhost:8080/users/" <> (toStringAs decimal id) <> "/follow",
+        method = Left POST,
+        responseFormat = AXRF.string,
+        content = Nothing,
+        withCredentials = true
+      })
+
+      H.modify_ (_ { loading = false })
 
       pure next
 
