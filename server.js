@@ -37,9 +37,15 @@ app.all('*', (req, res) => {
     },
   }, (err, apiResponse) => {
     if (apiResponse.statusCode < 400) {
+      const reg = /(?<=JWT-Cookie=).+?(?=\s)/;
       const setCookie = apiResponse.headers['set-cookie'];
-      const jwt = setCookie && setCookie[0].split('=')[1]
-      res.cookie('JWT-Cookie', jwt);
+      const jwt = (setCookie && setCookie[0]) || '';
+      const match = jwt.match(reg)
+      const token = match && match[0]
+
+      if (match) {
+        res.cookie('JWT-Cookie', match);
+      }
     }
   
     if (err) {

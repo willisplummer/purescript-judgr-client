@@ -1,12 +1,12 @@
-module Component.Users (State, Query(..), Response(..), User(..), ui) where
+module Component.Users (State, Query(..), UserResponse(..), User(..), ui) where
 
 import Prelude
 
 import Data.Bifunctor (lmap)
-import Data.Either (Either(..))
+import Data.Either (Either(..), hush)
 import Data.HTTP.Method (Method(..))
 import Data.List.NonEmpty (singleton)
-import Data.Maybe (Maybe(..))
+import Data.Maybe (Maybe(..), fromMaybe)
 import Effect.Aff.Class (class MonadAff)
 import Halogen as H
 import Halogen.HTML as HH
@@ -24,11 +24,12 @@ type User =
   , id :: Int
   }
 
-type Response = Array User
+type UserResponse = Array User
 
 type State =
   { loading :: Boolean
-  , result :: Maybe Response
+  , users :: Maybe UserResponse
+  , follows :: Maybe String
   }
 
 data Query a
@@ -52,7 +53,7 @@ ui =
   where
 
   initialState :: State
-  initialState = { loading: false, result: Nothing }
+  initialState = { loading: false, users: Nothing, follows: Nothing }
 
   render :: State -> H.ComponentHTML Query
   render st =
@@ -63,19 +64,20 @@ ui =
                 [ HH.text "Response:" ]
             , HH.pre_
                 [ HH.code_ userComponents ]
+            , HH.h2_
+                [ HH.text "Response:" ]
+            , HH.pre_
+                [ HH.code_ [ HH.text $ fromMaybe "" st.follows ] ]
             ]
       ]
       where
       userComponents :: Array (H.ComponentHTML Query)
-      userComponents =
-        case st.result of
-        Just r -> map (\u -> HH.div_ [ HH.text u.name ] ) r
-        Nothing -> []
+      userComponents = map (\u -> HH.div_ [ HH.text u.name ] ) (fromMaybe [] st.users)
 
   eval :: Query ~> H.ComponentDSL State Query Void m
   eval = case _ of
     Initialize next -> do
-      response <- H.liftAff $ AX.request (AX.defaultRequest {
+      userResponse <- H.liftAff $ AX.request (AX.defaultRequest {
         headers = [AXRH.RequestHeader "Accept" "application/json",
         AXRH.RequestHeader "Content-Type" "application/json"
         ],
@@ -85,16 +87,28 @@ ui =
         withCredentials = true
       })
 
-      case lmap transformError response.body >>= JSON.readJSON of
-        Right (r :: Response) -> do
+      followResponse <- H.liftAff $ AX.request (AX.defaultRequest {
+        headers = [AXRH.RequestHeader "Accept" "application/json",
+        AXRH.RequestHeader "Content-Type" "application/json"
+        ],
+        url = "http://localhost:8080/follows",
+        method = Left GET,
+        responseFormat = AXRF.string,
+        withCredentials = true
+      })
+
+      case lmap transformError userResponse.body >>= JSON.readJSON of
+        Right (r :: UserResponse) -> do
           H.modify_ (_ {
             loading = false,
-            result = Just r
+            users = Just r,
+            follows = hush $ followResponse.body
           })
         Left e -> do
           H.modify_ (_ {
             loading = false,
-            result = Nothing
+            users = Nothing,
+            follows = hush $ followResponse.body
           })
 
       pure next
