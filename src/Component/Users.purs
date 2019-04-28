@@ -2,7 +2,7 @@ module Component.Users (State, Query(..), UserResponse(..), User(..), Follow(..)
 
 import Prelude
 
-import Data.Array (find)
+import Data.Array (find, filter)
 import Data.Bifunctor (lmap)
 import Data.Either (Either(..), hush)
 import Data.HTTP.Method (Method(..))
@@ -47,6 +47,7 @@ type State =
 data Query a
   =  Initialize a
   |  Follow Int a
+  |  Unfollow Int a
 
 data Slot = Slot
 
@@ -90,7 +91,11 @@ ui =
           , (
             if (checkFollows u (fromMaybe [] st.follows))
             then
-              HH.text "  FOLLOWING!"
+              HH.button
+              [ HP.disabled st.loading
+              , HE.onClick (HE.input_ (Unfollow u.id))
+              ]
+              [ HH.text (if st.loading then "Working..." else "Unfollow") ]
             else
               HH.button
               [ HP.disabled st.loading
@@ -142,7 +147,31 @@ ui =
         withCredentials = true
       })
 
-      H.modify_ (_ { loading = false })
+      case lmap transformError response.body >>= JSON.readJSON of
+        Right (r :: Follow) -> do
+          H.modify_ (\s -> s { loading = false, follows = Just ((fromMaybe [] s.follows) <> [r]) })
+        Left e -> do
+          H.modify_ (_ { loading = false })
+
+      pure next
+    Unfollow id next -> do
+      H.modify_ (_ { loading = true })
+
+      response <- H.liftAff $ AX.request (AX.defaultRequest {
+        headers = [AXRH.RequestHeader "Accept" "application/json",
+        AXRH.RequestHeader "Content-Type" "application/json"],
+        url = "http://localhost:8080/users/" <> (toStringAs decimal id) <> "/unfollow",
+        method = Left POST,
+        responseFormat = AXRF.string,
+        content = Nothing,
+        withCredentials = true
+      })
+
+      -- TODO: Actually check the response before updating state
+      H.modify_ (\s -> s {
+        loading = false,
+        follows = Just (filter (\f -> f.followedId /= id) (fromMaybe [] s.follows))
+      })
 
       pure next
 
