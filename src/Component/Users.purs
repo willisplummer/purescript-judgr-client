@@ -4,11 +4,11 @@ import Prelude
 
 import Data.Array (find, filter)
 import Data.Bifunctor (lmap)
-import Data.Either (Either(..), hush)
 import Data.HTTP.Method (Method(..))
 import Data.Int (toStringAs, decimal)
+import Data.Either (Either(..))
+import Data.Maybe (Maybe(..), isJust)
 import Data.List.NonEmpty (singleton)
-import Data.Maybe (Maybe(..), fromMaybe, isJust)
 import Effect.Aff.Class (class MonadAff)
 import Halogen as H
 import Halogen.HTML as HH
@@ -17,6 +17,7 @@ import Halogen.HTML.Properties as HP
 import Affjax as AX
 import Affjax.ResponseFormat as AXRF
 import Affjax.RequestHeader as AXRH
+import Affjax.StatusCode as AXSC
 import Simple.JSON as JSON
 
 data Input a
@@ -38,11 +39,13 @@ type User =
 
 type UserResponse = Array User
 
-type State =
-  { loading :: Boolean
-  , users :: Maybe UserResponse
-  , follows :: Maybe FollowResponse
-  }
+data State
+  = Loading
+  | Failed
+  | Loaded {
+      users :: UserResponse
+    , follows :: FollowResponse
+    }
 
 data Query a
   =  Initialize a
@@ -53,6 +56,27 @@ data Slot = Slot
 
 checkFollows :: User -> FollowResponse -> Boolean
 checkFollows u fArr = isJust $ find (\f -> f.followedId == u.id) fArr
+
+userComponents :: UserResponse -> FollowResponse -> Array (H.ComponentHTML Query)
+userComponents users follows = map (\u ->
+  HH.div_ 
+    [
+      HH.text u.name
+    , (
+      if (checkFollows u follows)
+      then
+        HH.button
+        [ HP.disabled false
+        , HE.onClick (HE.input_ (Unfollow u.id))
+        ]
+        [ HH.text (if false then "Working..." else "Unfollow") ]
+      else
+        HH.button
+        [ HP.disabled false
+        , HE.onClick (HE.input_ (Follow u.id))
+        ]
+        [ HH.text (if false then "Working..." else "Follow") ])
+    ]) users
 
 derive instance eqSlot :: Eq Slot
 derive instance ordSlot :: Ord Slot
@@ -70,39 +94,20 @@ ui =
   where
 
   initialState :: State
-  initialState = { loading: false, users: Nothing, follows: Nothing }
+  initialState = Loading
 
   render :: State -> H.ComponentHTML Query
   render st =
-    HH.div_ [
-      HH.h1_ [ HH.text "USERS" ],
-      HH.div_
-            [ HH.h2_
-                [ HH.text "Response:" ]
-            , HH.div_ userComponents
-            ]
+      HH.div_ [
+        HH.h1_ [ HH.text "USERS" ],
+        case st of
+          Loading -> HH.div_ [ HH.text "loading"]
+          Failed -> HH.div_ [ HH.text "failed" ]
+          Loaded r ->
+            HH.div_ $ userComponents r.users r.follows
       ]
-      where
-      userComponents :: Array (H.ComponentHTML Query)
-      userComponents = map (\u ->
-        HH.div_ 
-          [
-            HH.text u.name
-          , (
-            if (checkFollows u (fromMaybe [] st.follows))
-            then
-              HH.button
-              [ HP.disabled st.loading
-              , HE.onClick (HE.input_ (Unfollow u.id))
-              ]
-              [ HH.text (if st.loading then "Working..." else "Unfollow") ]
-            else
-              HH.button
-              [ HP.disabled st.loading
-              , HE.onClick (HE.input_ (Follow u.id))
-              ]
-              [ HH.text (if st.loading then "Working..." else "Follow") ])
-          ]) (fromMaybe [] st.users)
+
+
 
   eval :: Query ~> H.ComponentDSL State Query Void m
   eval = case _ of
@@ -127,52 +132,61 @@ ui =
         withCredentials = true
       })
 
-      H.modify_ (_ {
-        loading = false,
-        users = hush $ JSON.readJSON =<< lmap transformError userResponse.body,
-        follows = hush $ JSON.readJSON =<< lmap transformError followResponse.body
-      })
+      case lmap transformError userResponse.body >>= JSON.readJSON of
+        Right (users :: UserResponse) ->
+          case lmap transformError followResponse.body >>= JSON.readJSON of
+            Right (follows :: FollowResponse) ->
+              H.modify_ (\s -> Loaded { users: users, follows: follows })
+            Left e ->
+              H.modify_ (\s -> Failed)
+        Left e -> do
+          H.modify_ (\s -> Failed)
 
       pure next
     Follow id next -> do
-      H.modify_ (_ { loading = true })
+      state <- H.get
+      case state of
+        Loaded records -> do
+          response <- H.liftAff $ AX.request (AX.defaultRequest {
+            headers = [AXRH.RequestHeader "Accept" "application/json",
+            AXRH.RequestHeader "Content-Type" "application/json"],
+            url = "http://localhost:8080/users/" <> (toStringAs decimal id) <> "/follow",
+            method = Left POST,
+            responseFormat = AXRF.string,
+            content = Nothing,
+            withCredentials = true
+          })
 
-      response <- H.liftAff $ AX.request (AX.defaultRequest {
-                headers = [AXRH.RequestHeader "Accept" "application/json",
-        AXRH.RequestHeader "Content-Type" "application/json"],
-        url = "http://localhost:8080/users/" <> (toStringAs decimal id) <> "/follow",
-        method = Left POST,
-        responseFormat = AXRF.string,
-        content = Nothing,
-        withCredentials = true
-      })
-
-      case lmap transformError response.body >>= JSON.readJSON of
-        Right (r :: Follow) -> do
-          H.modify_ (\s -> s { loading = false, follows = Just ((fromMaybe [] s.follows) <> [r]) })
-        Left e -> do
-          H.modify_ (_ { loading = false })
-
+          case lmap transformError response.body >>= JSON.readJSON of
+            Right (r :: Follow) -> do
+              H.modify_ (\s -> Loaded (records { follows = (records.follows <> [r]) }))
+            Left e -> do
+              H.modify_ (\s -> Failed)
+        _ -> pure unit
       pure next
+
     Unfollow id next -> do
-      H.modify_ (_ { loading = true })
+      state <- H.get
+      case state of
+        Loaded records -> do
+          response <- H.liftAff $ AX.request (AX.defaultRequest {
+            headers = [AXRH.RequestHeader "Accept" "application/json",
+            AXRH.RequestHeader "Content-Type" "application/json"],
+            url = "http://localhost:8080/users/" <> (toStringAs decimal id) <> "/unfollow",
+            method = Left POST,
+            responseFormat = AXRF.string,
+            content = Nothing,
+            withCredentials = true
+          })
 
-      response <- H.liftAff $ AX.request (AX.defaultRequest {
-        headers = [AXRH.RequestHeader "Accept" "application/json",
-        AXRH.RequestHeader "Content-Type" "application/json"],
-        url = "http://localhost:8080/users/" <> (toStringAs decimal id) <> "/unfollow",
-        method = Left POST,
-        responseFormat = AXRF.string,
-        content = Nothing,
-        withCredentials = true
-      })
-
-      -- TODO: Actually check the response before updating state
-      H.modify_ (\s -> s {
-        loading = false,
-        follows = Just (filter (\f -> f.followedId /= id) (fromMaybe [] s.follows))
-      })
-
+          if response.status == AXSC.StatusCode 204
+            then
+              H.modify_ (\s -> Loaded records {
+                follows = filter (\f -> f.followedId /= id) records.follows
+              })
+            else
+              pure unit
+        _ -> pure unit
       pure next
 
 transformError (AXRF.ResponseFormatError e _) = singleton e
